@@ -6,6 +6,11 @@
 # https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
 from scrapy import signals
+import base64
+import time
+import hashlib
+from random import choice
+import datetime
 
 
 class ScrapySpidersSpiderMiddleware(object):
@@ -101,3 +106,51 @@ class ScrapySpidersDownloaderMiddleware(object):
 
     def spider_opened(self, spider):
         spider.logger.info('Spider opened: %s' % spider.name)
+
+
+class SuperProxy(object):
+    def proxy_kuai(self):
+        # 隧道服务器
+        tunnel_host = "tps136.kdlapi.com"
+        tunnel_port = "***********"
+
+        # 隧道id和密码
+        tid = "***********"
+        password = "***********"
+        proxy_server = 'http://%s:%s@%s:%s' % (tid, password, tunnel_host, tunnel_port)
+        proxy_auth = "Basic %s" % (base64.b64encode(('%s:%s' % (tid, password)).encode('utf-8'))).decode('utf-8')
+        return proxy_server, proxy_auth, "kuai"
+
+    def proxy_abu(self):
+        # 代理服务器
+        proxy_server = "http://http-dyn.abuyun.com:9020"
+        # 代理隧道验证信息
+        proxy_user = "***********"
+        proxy_pass = "***********"
+        proxy_auth = "Basic " + base64.urlsafe_b64encode(bytes((proxy_user + ":" + proxy_pass), "ascii")).decode("utf8")
+        return proxy_server, proxy_auth, "abu"
+
+    def proxy_xun(self):
+        # 讯代理服务器
+        proxy_server = "http://forward.xdaili.cn:80"
+        # 代理隧道验证信息
+        proxy_user = "ZF201932107811lGLxU"  # 订单号
+        proxy_pass = "c8b46593a14f4f368aa7873b9daa509c"  # 秘钥
+
+        timestamp = str(int(time.time()))  # 计算时间戳
+        string = "orderno=" + proxy_user + "," + "secret=" + proxy_pass + "," + "timestamp=" + timestamp
+        string = string.encode()
+        md5_string = hashlib.md5(string).hexdigest()  # 计算sign
+        sign = md5_string.upper()  # 转换成大写
+        proxyAuth = "sign=" + sign + "&" + "orderno=" + proxy_user + "&" + "timestamp=" + timestamp
+        return proxy_server, proxyAuth, "xun"
+
+    def process_request(self, request, spider):
+        # 随机选择
+        # if "cnca.cn" in request.url:
+            proxy_server, proxy_auth, name = choice([self.proxy_xun])()
+            request.meta["proxy"] = proxy_server
+            request.headers["Proxy-Authorization"] = proxy_auth
+            print("---- super请求请求 {} 正在使用代理隧道-{} 请求地址：{} ----".format(
+                datetime.datetime.now(), name, request.url)
+            )
